@@ -80,6 +80,7 @@
     padding-left: var(--la-pad-loose);
     padding-right: var(--la-pad-loose);
     height: 30px;
+    flex-shrink: 0;
     background-color: var(--la-bg-alt);
     color: var(--la-text-muted);
     border-top-left-radius: var(--la-radius-md);
@@ -514,6 +515,7 @@ ScrollView {
 .la-sync {
     flex-direction: row;
     align-items: center;
+    flex-shrink: 0;
     height: 26px;
     padding: 0 10px;
     margin-right: var(--la-pad-tight);

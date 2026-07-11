@@ -63,6 +63,15 @@ namespace PersistenceKit.Editor
         private Button        _pauseResumeBtn;
         private Button        _stopStartBtn;
 
+        // Responsive toolbar. The action buttons live in _actionsGroup; when the row is too
+        // narrow to show them they collapse into the _overflowBtn dropdown, leaving just the
+        // tabs and the sync status (read-only info) visible.
+        private VisualElement _spacer;
+        private VisualElement _actionsGroup;
+        private Button        _overflowBtn;
+        private bool          _isCompact;
+        private float         _fullRowWidth = -1f;
+
         private string _activeTab = "inspector";
         private double _lastRefreshTime;
 
@@ -180,35 +189,140 @@ namespace PersistenceKit.Editor
             AddTab("snapshots", "Snapshots");
             AddTab("activity",  "Activity");
 
-            var spacer = new VisualElement();
-            spacer.AddToClassList("la-tab-row__spacer");
-            _tabRow.Add(spacer);
+            _spacer = new VisualElement();
+            _spacer.AddToClassList("la-tab-row__spacer");
+            _tabRow.Add(_spacer);
 
-            // Sync widget — colored dot + label, plus pause/resume and stop/start toggles.
+            // Sync status (colored dot + label) — always visible; it's read-only state info.
             BuildSyncWidget(_tabRow);
+
+            // Every actionable control lives in one collapsible group so it can fold into the
+            // overflow menu when the row runs out of room.
+            _actionsGroup = BuildActionsGroup();
+            _tabRow.Add(_actionsGroup);
+
+            // Overflow "…" — hidden until the row is too narrow; opens the actions as a menu.
+            _overflowBtn = new Button(ShowOverflowMenu) { text = "…" };
+            _overflowBtn.AddToClassList("la-toolbar__btn");
+            _overflowBtn.AddToClassList("la-toolbar__btn--icon");
+            _overflowBtn.tooltip = "More actions";
+            _overflowBtn.style.display = DisplayStyle.None;
+            _tabRow.Add(_overflowBtn);
+
+            // Re-evaluate the compact/expanded split whenever the row resizes.
+            _tabRow.RegisterCallback<GeometryChangedEvent>(OnTabRowGeometryChanged);
+
+            UpdateSyncWidget();
+        }
+
+        private VisualElement BuildActionsGroup()
+        {
+            var group = new VisualElement();
+            group.style.flexDirection = FlexDirection.Row;
+            group.style.alignItems = Align.Center;
+            // Don't let flex shrink the buttons — we measure this group's natural width to
+            // decide when to collapse it, and a shrunk (clipped) width would defeat that.
+            group.style.flexShrink = 0;
+
+            _pauseResumeBtn = new Button(TogglePauseResume) { text = "Pause" };
+            _pauseResumeBtn.AddToClassList("la-toolbar__btn");
+            group.Add(_pauseResumeBtn);
+
+            _stopStartBtn = new Button(ToggleStopStart) { text = "Stop" };
+            _stopStartBtn.AddToClassList("la-toolbar__btn");
+            group.Add(_stopStartBtn);
 
             var export = new Button(ExportClicked) { text = "Export" };
             export.AddToClassList("la-toolbar__btn");
             export.tooltip = "Export every loaded state to a single JSON file. Encrypted fields are exported as plaintext.";
-            _tabRow.Add(export);
+            group.Add(export);
 
             var import = new Button(ImportClicked) { text = "Import" };
             import.AddToClassList("la-toolbar__btn");
             import.tooltip = "Import states from a JSON file. Live state is overwritten and saved; encrypted fields are re-encrypted by the kit on save.";
-            _tabRow.Add(import);
+            group.Add(import);
 
             var reset = new Button(ResetAllClicked) { text = "Reset All" };
             reset.AddToClassList("la-toolbar__btn");
             reset.tooltip = "Wipe every cached state's persisted fields to their default values and save through every wired target. Destructive — confirm before applying.";
-            _tabRow.Add(reset);
+            group.Add(reset);
 
             var refresh = new Button(RefreshAll) { text = "Refresh" };
             refresh.AddToClassList("la-toolbar__btn");
-            _tabRow.Add(refresh);
+            group.Add(refresh);
 
             var clearLog = new Button(() => { _log.Clear(); RefreshAll(); }) { text = "Clear Log" };
             clearLog.AddToClassList("la-toolbar__btn");
-            _tabRow.Add(clearLog);
+            group.Add(clearLog);
+
+            return group;
+        }
+
+        // ─── Responsive toolbar ──────────────────────────────────
+
+        private void OnTabRowGeometryChanged(GeometryChangedEvent evt)
+        {
+            // Measure the natural width of the fixed content (tabs + sync + all action
+            // buttons, excluding the flexible spacer and the overflow button) once, from the
+            // buttons' intrinsic widths — clipping doesn't shrink them, so this is stable even
+            // if we first lay out narrow.
+            if (_fullRowWidth < 0f && _actionsGroup.resolvedStyle.display != DisplayStyle.None)
+            {
+                float sum = 0f;
+                foreach (var child in _tabRow.Children())
+                {
+                    if (child == _spacer || child == _overflowBtn) continue;
+                    var rs = child.resolvedStyle;
+                    if (float.IsNaN(rs.width) || rs.width <= 0f) return;   // not laid out yet
+                    sum += rs.width + rs.marginLeft + rs.marginRight;
+                }
+                _fullRowWidth = sum;
+            }
+            if (_fullRowWidth < 0f) return;
+
+            float available = _tabRow.resolvedStyle.width;
+            if (float.IsNaN(available) || available <= 0f) return;
+
+            // +8 keeps a sliver of spacer so buttons never butt against the last tab.
+            ApplyCompact(available < _fullRowWidth + 8f);
+        }
+
+        private void ApplyCompact(bool compact)
+        {
+            if (_isCompact == compact) return;
+            _isCompact = compact;
+            _actionsGroup.style.display = compact ? DisplayStyle.None : DisplayStyle.Flex;
+            _overflowBtn.style.display  = compact ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void ShowOverflowMenu()
+        {
+            var menu = new GenericMenu();
+            var status = AutoSaveLoop.AggregateStatus();
+
+            // Autosave controls mirror the pause/stop toggles.
+            if (status == AutoSaveLoop.SyncStatus.Disabled)
+            {
+                menu.AddDisabledItem(new GUIContent("Pause Autosave"));
+                menu.AddDisabledItem(new GUIContent("Stop Autosave"));
+            }
+            else
+            {
+                menu.AddItem(new GUIContent(status == AutoSaveLoop.SyncStatus.Paused ? "Resume Autosave" : "Pause Autosave"),
+                    false, TogglePauseResume);
+                menu.AddItem(new GUIContent(status == AutoSaveLoop.SyncStatus.Stopped ? "Start Autosave" : "Stop Autosave"),
+                    false, ToggleStopStart);
+            }
+
+            menu.AddSeparator("");
+            menu.AddItem(new GUIContent("Export…"),    false, ExportClicked);
+            menu.AddItem(new GUIContent("Import…"),    false, ImportClicked);
+            menu.AddItem(new GUIContent("Reset All…"), false, ResetAllClicked);
+            menu.AddSeparator("");
+            menu.AddItem(new GUIContent("Refresh"),    false, () => RefreshAll());
+            menu.AddItem(new GUIContent("Clear Log"),  false, () => { _log.Clear(); RefreshAll(); });
+
+            menu.DropDown(_overflowBtn.worldBound);
         }
 
         private void ExportClicked()
@@ -366,16 +480,8 @@ namespace PersistenceKit.Editor
             widget.Add(_syncLabel);
 
             host.Add(widget);
-
-            _pauseResumeBtn = new Button(TogglePauseResume) { text = "Pause" };
-            _pauseResumeBtn.AddToClassList("la-toolbar__btn");
-            host.Add(_pauseResumeBtn);
-
-            _stopStartBtn = new Button(ToggleStopStart) { text = "Stop" };
-            _stopStartBtn.AddToClassList("la-toolbar__btn");
-            host.Add(_stopStartBtn);
-
-            UpdateSyncWidget();
+            // The pause/stop toggles now live in the collapsible actions group (BuildActionsGroup);
+            // UpdateSyncWidget is called from BuildTabRow once those buttons exist.
         }
 
         private static void TogglePauseResume()
@@ -396,6 +502,10 @@ namespace PersistenceKit.Editor
 
         private void UpdateSyncWidget()
         {
+            // Guard: the sync dot and the pause/stop toggles are built in separate passes, so
+            // this can be reached before the toggles exist (e.g. an early refresh tick).
+            if (_syncDot == null || _pauseResumeBtn == null || _stopStartBtn == null) return;
+
             var status = AutoSaveLoop.AggregateStatus();
 
             // Reset dot state classes, then apply the matching one.

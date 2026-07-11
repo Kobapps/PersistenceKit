@@ -38,13 +38,19 @@ namespace PersistenceKit.Editor.Settings
             var settings = PersistenceKitSettings.Instance;
             var ser = new SerializedObject(settings);
 
+            // Scroll host — without this the page overflows (and clips) once the settings
+            // window is shorter than the content.
+            var scroll = new ScrollView(ScrollViewMode.Vertical);
+            scroll.style.flexGrow = 1;
+            root.Add(scroll);
+
             var page = new VisualElement();
             page.AddToClassList("la-root");
             page.style.paddingTop    = 8;
             page.style.paddingBottom = 8;
             page.style.paddingLeft   = 12;
             page.style.paddingRight  = 12;
-            root.Add(page);
+            scroll.Add(page);
 
             page.Add(MakeHeading("Inspector"));
             var inspectorCard = MakeCard();
