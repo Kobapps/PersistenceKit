@@ -4,9 +4,9 @@
   "displayName": "PersistenceKit",
   "description": "Persistent save system for Unity with source-generated boilerplate. Mark fields with [Persist] / [Encrypted] and route each one independently to JSON / Binary / PlayerPrefs / Remote targets. Per-field AES-256 encryption, multi-slot states, autosave loop with pause/resume/stop, full editor inspector (Inspector / Storage / Snapshots / Activity tabs), JSON export-import, undo, whole-world snapshots, project-scoped settings. Standalone-friendly; optional DI adapters for VContainer and Zenject.",
   "unity": "6000.0",
-  "documentationUrl": "https://github.com/kobapps/persistencekit",
-  "changelogUrl": "https://github.com/kobapps/persistencekit/blob/main/Assets/PersistenceKit/CHANGELOG.md",
-  "licensesUrl": "https://github.com/kobapps/persistencekit/blob/main/Assets/PersistenceKit/LICENSE.md",
+  "documentationUrl": "https://github.com/Kobapps/PersistenceKit",
+  "changelogUrl": "https://github.com/Kobapps/PersistenceKit/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/Kobapps/PersistenceKit/blob/main/LICENSE.md",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.0.0"
   },
@@ -22,8 +22,8 @@
     "autosave"
   ],
   "author": {
-    "name": "kobapps",
-    "url": "https://github.com/kobapps"
+    "name": "Kobapps",
+    "url": "https://github.com/Kobapps"
   },
   "samples": [
     {
