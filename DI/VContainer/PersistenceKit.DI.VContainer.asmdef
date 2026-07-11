@@ -2,7 +2,8 @@
     "name": "PersistenceKit.DI.VContainer",
     "rootNamespace": "PersistenceKit.DI",
     "references": [
-        "PersistenceKit.Runtime"
+        "PersistenceKit.Runtime",
+        "VContainer"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -10,7 +11,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "PERSISTENCEKIT_VCONTAINER"
+    ],
     "versionDefines": [
         {
             "name": "jp.hadashikick.vcontainer",

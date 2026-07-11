@@ -2,7 +2,8 @@
     "name": "PersistenceKit.DI.Zenject",
     "rootNamespace": "PersistenceKit.DI",
     "references": [
-        "PersistenceKit.Runtime"
+        "PersistenceKit.Runtime",
+        "Zenject"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -10,7 +11,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "PERSISTENCEKIT_ZENJECT"
+    ],
     "versionDefines": [
         {
             "name": "com.svermeulen.extenject",
