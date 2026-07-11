@@ -1,0 +1,35 @@
+{
+  "name": "com.kobapps.persistencekit",
+  "version": "0.1.0",
+  "displayName": "PersistenceKit",
+  "description": "Persistent save system for Unity with source-generated boilerplate. Mark fields with [Persist] / [Encrypted] and route each one independently to JSON / Binary / PlayerPrefs / Remote targets. Per-field AES-256 encryption, multi-slot states, autosave loop with pause/resume/stop, full editor inspector (Inspector / Storage / Snapshots / Activity tabs), JSON export-import, undo, whole-world snapshots, project-scoped settings. Standalone-friendly; optional DI adapters for VContainer and Zenject.",
+  "unity": "6000.0",
+  "documentationUrl": "https://github.com/kobapps/persistencekit",
+  "changelogUrl": "https://github.com/kobapps/persistencekit/blob/main/Assets/PersistenceKit/CHANGELOG.md",
+  "licensesUrl": "https://github.com/kobapps/persistencekit/blob/main/Assets/PersistenceKit/LICENSE.md",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.0.0"
+  },
+  "keywords": [
+    "persistence",
+    "save",
+    "serialization",
+    "state",
+    "encryption",
+    "playerprefs",
+    "cloud-save",
+    "source-generator",
+    "autosave"
+  ],
+  "author": {
+    "name": "kobapps",
+    "url": "https://github.com/kobapps"
+  },
+  "samples": [
+    {
+      "displayName": "Rich Save Sample",
+      "description": "Four state types (PlayerProfile / InventoryState / SettingsState / CloudState) routed across every target, encryption, multi-slot, and ~16 mutation buttons in a runtime scene. Includes a Tools menu item that builds the scene programmatically.",
+      "path": "Samples~/RichSaveSample"
+    }
+  ]
+}

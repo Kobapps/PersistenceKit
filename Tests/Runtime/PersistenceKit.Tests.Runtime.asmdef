@@ -1,0 +1,33 @@
+{
+    "name": "PersistenceKit.Tests.EditMode",
+    "rootNamespace": "PersistenceKit.Tests",
+    "references": [
+        "PersistenceKit.Runtime",
+        "PersistenceKit.Serializers.Newtonsoft",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll",
+        "PersistenceKit.SourceGenerator.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.nuget.newtonsoft-json",
+            "expression": "3.0.0",
+            "define": "PERSISTENCEKIT_NEWTONSOFT"
+        }
+    ],
+    "noEngineReferences": false
+}

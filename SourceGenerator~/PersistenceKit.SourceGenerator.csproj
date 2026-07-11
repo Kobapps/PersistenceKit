@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <RootNamespace>PersistenceKit.SourceGenerator</RootNamespace>
+    <AssemblyName>PersistenceKit.SourceGenerator</AssemblyName>
+    <!-- Output goes straight into Plugins/ so Unity picks it up alongside the Runtime asmdef. -->
+    <OutputPath>$(MSBuildThisFileDirectory)..\Runtime\Plugins\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to 4.3.1 — the floor that still ships ForAttributeWithMetadataName, and
+         old enough to load under Unity 6's bundled Roslyn (4.4 series). Bumping past this
+         triggers CS9057 in Unity which silently skips the analyzer. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

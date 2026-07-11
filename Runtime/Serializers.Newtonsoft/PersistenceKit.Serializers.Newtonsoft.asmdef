@@ -1,0 +1,22 @@
+{
+    "name": "PersistenceKit.Serializers.Newtonsoft",
+    "rootNamespace": "PersistenceKit.Serializers",
+    "references": [
+        "PersistenceKit.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.nuget.newtonsoft-json",
+            "expression": "3.0.0",
+            "define": "PERSISTENCEKIT_NEWTONSOFT"
+        }
+    ],
+    "noEngineReferences": false
+}
