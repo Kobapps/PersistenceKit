@@ -158,7 +158,10 @@ namespace PersistenceKit.Editor.Snapshots
                     }
 
                     ApplyFields(target, fieldsObj);
-                    target.MarkDirty();
+                    // Only targets with a store behind them — MarkDirty() would set the state's
+                    // whole mask, and SaveAsync throws on an unwired target, which would sink
+                    // the restore for the wired ones too.
+                    PersistenceKitWindow.MarkWiredTargetsDirty(manager, target);
                     await manager.SaveAsync(target);
                     restored++;
                 }

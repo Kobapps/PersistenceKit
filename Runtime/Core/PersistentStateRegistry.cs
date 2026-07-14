@@ -25,6 +25,14 @@ namespace PersistenceKit
             public bool   DefaultsResolved;
         }
 
+        /// <summary>A registered state type paired with the type id used in its storage key.</summary>
+        public readonly struct RegisteredState
+        {
+            public readonly Type   Type;
+            public readonly string TypeId;
+            public RegisteredState(Type type, string typeId) { Type = type; TypeId = typeId; }
+        }
+
         /// <summary>Registers a state type. Called from generated <c>[ModuleInitializer]</c> code.</summary>
         public static void Register<T>(
             Func<T> factory,
@@ -130,6 +138,60 @@ namespace PersistenceKit
         public static bool DefaultsAreResolved
         {
             get { lock (_lock) return _defaultsResolved; }
+        }
+
+        /// <summary>
+        /// Snapshot of every registered state type. The registration hooks the generator emits
+        /// run on editor domain reload as well as at runtime, so this is populated outside Play
+        /// mode too — which is what lets editor tooling enumerate states with no manager built.
+        /// </summary>
+        public static List<RegisteredState> Snapshot()
+        {
+            lock (_lock)
+            {
+                var list = new List<RegisteredState>(_byType.Count);
+                foreach (var e in _byType.Values) list.Add(new RegisteredState(e.Type, e.TypeId));
+                return list;
+            }
+        }
+
+        /// <summary>
+        /// The default target a manager resolved to, if one has. Lets a caller adopt the
+        /// existing resolution instead of calling <see cref="ResolveDefaults"/> with a
+        /// conflicting value (which throws).
+        /// </summary>
+        public static bool TryGetResolvedDefault(out PersistTarget target)
+        {
+            lock (_lock)
+            {
+                target = _resolvedDefault;
+                return _defaultsResolved;
+            }
+        }
+
+        /// <summary>
+        /// Releases the resolved-default latch while keeping every registration, so a later
+        /// <see cref="ResolveDefaults"/> may pick a different target.
+        /// </summary>
+        /// <remarks>
+        /// Framework-only escape hatch (hence the underscores) for editor tooling that resolves
+        /// defaults provisionally — the edit-mode inspector must resolve to read a state's
+        /// <c>TargetMask</c>, but must not lock the game's own <c>Build()</c> out of resolving
+        /// differently when Enter Play Mode is configured without a domain reload.
+        /// <para>
+        /// This does NOT undo the target bits <c>__ResolveDefaults</c> OR'd into each type's
+        /// mask — the generated code only ever sets bits. A caller that resolved provisionally
+        /// is responsible for restoring the masks it perturbed.
+        /// </para>
+        /// </remarks>
+        public static void __UnresolveDefaults()
+        {
+            lock (_lock)
+            {
+                _defaultsResolved = false;
+                _resolvedDefault  = default;
+                foreach (var e in _byType.Values) e.DefaultsResolved = false;
+            }
         }
 
         /// <summary>

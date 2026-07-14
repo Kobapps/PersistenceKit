@@ -2,7 +2,8 @@
     "name": "PersistenceKit.Editor",
     "rootNamespace": "PersistenceKit.Editor",
     "references": [
-        "PersistenceKit.Runtime"
+        "PersistenceKit.Runtime",
+        "PersistenceKit.Serializers.Newtonsoft"
     ],
     "includePlatforms": [
         "Editor"
@@ -13,6 +14,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.nuget.newtonsoft-json",
+            "expression": "3.0.0",
+            "define": "PERSISTENCEKIT_NEWTONSOFT"
+        }
+    ],
     "noEngineReferences": false
 }

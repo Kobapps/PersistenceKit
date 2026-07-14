@@ -130,7 +130,10 @@ namespace PersistenceKit.Editor.Tools
 
                 // Mark every wired target dirty as a belt-and-suspenders against fields whose
                 // imported JSON happened to equal the current value (no setter dirty fires).
-                target.MarkDirty();
+                // Strictly the wired ones: IPersistentState.MarkDirty() sets the state's whole
+                // mask, and SaveAsync throws on a target with no store behind it — which would
+                // lose the import for the targets that are wired.
+                PersistenceKitWindow.MarkWiredTargetsDirty(manager, target);
                 await manager.SaveAsync(target);
                 imported++;
             }

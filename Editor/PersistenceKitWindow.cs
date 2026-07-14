@@ -120,6 +120,18 @@ namespace PersistenceKit.Editor
             SelectTab("inspector");
             RefreshAll();
 
+            // Outside Play mode nothing has built a manager, so the window would open empty.
+            // Read the save files directly instead — that's the whole point of the edit-mode
+            // session. Opt-out lives in Project Settings for projects where touching storage
+            // on window-open isn't wanted.
+            if (settings.EditModeAutoLoad
+                && !EditorApplication.isPlayingOrWillChangePlaymode
+                && EditModeSession.SerializerAvailable
+                && !EditModeSession.IsRunning)
+            {
+                LoadEditModeStatesAsync();
+            }
+
             // Live refresh tick — interval driven by Project Settings (default ~3 Hz).
             int interval = Mathf.Clamp(settings.AutoRefreshIntervalMs, 100, 2000);
             root.schedule.Execute(LiveRefresh).Every(interval);
@@ -130,10 +142,30 @@ namespace PersistenceKit.Editor
             SnapshotStore.OnRestored  += OnSnapshotRestored;
         }
 
+        private async void LoadEditModeStatesAsync()
+        {
+            try
+            {
+                var (loaded, failed) = (0, 0);
+                if (EditModeSession.Start())
+                    (loaded, failed) = await EditModeSession.LoadAllAsync();
+
+                if (failed > 0)
+                    Debug.LogWarning($"[PersistenceKit] Edit mode: opened {loaded} saved state(s); {failed} failed. " +
+                                     "States with [Encrypted] fields need the key set in Project Settings → PersistenceKit.");
+                RefreshAll();
+            }
+            catch (Exception ex) { Debug.LogException(ex); }
+        }
+
         private void OnDisable()
         {
             UnsubscribeAll();
             _inspector?.Dispose();
+            // Hand back the edit-mode manager and the registry statics it perturbed. Domain
+            // reload does this for us via EditModeSession's own hook, but simply closing the
+            // window shouldn't leave a manager parked in ActiveManagers either.
+            EditModeSession.Stop();
             SnapshotStore.OnCaptured  -= OnSnapshotCaptured;
             SnapshotStore.OnRestoring -= OnSnapshotRestoring;
             SnapshotStore.OnRestored  -= OnSnapshotRestored;
@@ -401,7 +433,7 @@ namespace PersistenceKit.Editor
                             }
                             fieldCount++;
                         }
-                        state.MarkDirty();
+                        MarkWiredTargetsDirty(manager, state);
                         await manager.SaveAsync(state);
                         resetCount++;
                     }
@@ -419,6 +451,28 @@ namespace PersistenceKit.Editor
             {
                 Debug.LogException(ex);
                 EditorUtility.DisplayDialog("Reset failed", ex.Message, "OK");
+            }
+        }
+
+        /// <summary>
+        /// Mark every target in the state's mask that <paramref name="manager"/> actually has a
+        /// store for.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="IPersistentState.MarkDirty()"/> sets every bit in the mask, and
+        /// <see cref="PersistenceManager.SaveAsync"/> throws on a dirty bit whose target was
+        /// never wired — aborting the save for the targets that <i>are</i> wired along with it.
+        /// The edit-mode session wires no Remote target, so a Remote-routed state would fail
+        /// here every time.
+        /// </remarks>
+        internal static void MarkWiredTargetsDirty(PersistenceManager manager, IPersistentState state)
+        {
+            var mask = (byte)state.TargetMask;
+            for (int i = 0; i < 4; i++)
+            {
+                var target = (PersistTarget)i;
+                if ((mask & (1 << i)) != 0 && manager.Options.Targets.ContainsKey(target))
+                    state.MarkDirty(target);
             }
         }
 
@@ -826,10 +880,15 @@ namespace PersistenceKit.Editor
                 totalCached += m.SnapshotCache().Count;
                 totalSaves  += m.SaveCount;
             }
-            _statusLeft.text = $"managers: {managers.Count}    cached: {totalCached}    saves: {totalSaves}    log: {_log.Count}";
-            _statusRight.text = managers.Count == 0
-                ? "no active manager — enter Play mode or build one in code"
-                : $"updated {(int)(EditorApplication.timeSinceStartup - _lastRefreshTime + 0.5)}s ago";
+            var scope = EditModeSession.IsRunning ? "edit mode" : $"managers: {managers.Count}";
+            _statusLeft.text = $"{scope}    cached: {totalCached}    saves: {totalSaves}    log: {_log.Count}";
+
+            if (managers.Count > 0)
+                _statusRight.text = $"updated {(int)(EditorApplication.timeSinceStartup - _lastRefreshTime + 0.5)}s ago";
+            else if (EditorApplication.isPlayingOrWillChangePlaymode)
+                _statusRight.text = "no active manager — build one in code";
+            else
+                _statusRight.text = "no states loaded — press Load Saved States";
         }
 
         private static StyleSheet LoadStyleSheet()

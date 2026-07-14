@@ -34,11 +34,47 @@ namespace PersistenceKit.Editor.Settings
         [Tooltip("Hide / show the colour-coded target chip on each field row.")]
         public bool ShowTargetChips = true;
 
-        [Tooltip("Hide / show the dirty pill on each state in the tree.")]
+        [Tooltip("Light up a tree row's per-target dot when that store has unsaved writes.")]
         public bool ShowDirtyChips = true;
 
         [Tooltip("Show the field's C# type beside its name.")]
         public bool ShowFieldTypes = false;
+
+        [Tooltip("Group the Inspector's field grid under a header per target, instead of one flat list.")]
+        public bool GroupFieldsByTarget = true;
+
+        [Tooltip("Tint fields whose value differs from the type's freshly-constructed default.")]
+        public bool HighlightChangedFields = true;
+
+        [Tooltip("Show the summary strip (state / target / byte totals) above the field grid.")]
+        public bool ShowOverview = true;
+
+        // ─── Edit-mode session ────────────────────────────────────
+        // Outside Play mode there is no manager, so the window builds its own against these
+        // settings to read the same files the game does. They must mirror the game's
+        // PersistenceKitBuilder wiring or the window will read the wrong store.
+
+        [Tooltip("Open saved states automatically when the window is shown outside Play mode. " +
+                 "Off means you press 'Load Saved States' yourself.")]
+        public bool EditModeAutoLoad = true;
+
+        [Tooltip("Target that bare [Persist] fields route to — must match the game's " +
+                 "PersistenceKitBuilder.UseDefaultTarget(...) or the window reads the wrong store.")]
+        public PersistTarget EditModeDefaultTarget = PersistTarget.Json;
+
+        [Tooltip("Root folder for the JSON disk target. Empty = the target's own default " +
+                 "(<persistentDataPath>/PersistenceKit/json). Relative paths resolve to the project root.")]
+        public string EditModeJsonRoot = "";
+
+        [Tooltip("Root folder for the binary disk target. Empty = the target's own default " +
+                 "(<persistentDataPath>/PersistenceKit/binary). Relative paths resolve to the project root.")]
+        public string EditModeBinaryRoot = "";
+
+        [Tooltip("Base64 of the 32-byte AES key, to read [Encrypted] fields outside Play mode. " +
+                 "Leave empty unless you use [Encrypted] — states with encrypted fields will " +
+                 "fail to open without it. Anyone with the project can read this; keep " +
+                 "production keys out of it.")]
+        public string EditModeEncryptionKey = "";
 
         // ─── Activity log ─────────────────────────────────────────
         [Tooltip("Size of the in-memory ring buffer that backs the Activity tab.")]

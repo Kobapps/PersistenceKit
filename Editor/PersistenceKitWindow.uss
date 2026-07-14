@@ -545,3 +545,139 @@ ScrollView {
     letter-spacing: 1;
     margin-right: 0;
 }
+
+/* ───────────────────────── Tree filter ───────────────────────── */
+
+.la-search-host {
+    padding: 6px 8px;
+    flex-shrink: 0;
+}
+
+/* ───────────────────────── Edit-mode banner ───────────────────────── */
+/* Shown on the Inspector canvas whenever the game isn't running, where saved
+   data is read straight off disk rather than from a live manager. */
+
+.la-editmode {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 10px;
+    background-color: var(--la-bg-panel);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--la-border);
+    flex-shrink: 0;
+}
+.la-editmode--warn {
+    background-color: #3a2a2a;
+    border-bottom-color: var(--la-tgt-encrypted);
+}
+.la-editmode__status {
+    flex-grow: 1;
+    flex-shrink: 1;
+    color: var(--la-text-muted);
+    font-size: 11px;
+    white-space: normal;
+    margin-right: 8px;
+}
+.la-editmode--warn .la-editmode__status { color: #e8b0b0; }
+
+/* ───────────────────────── Overview strip ───────────────────────── */
+
+.la-overview {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 6px 4px;
+    background-color: var(--la-bg-alt);
+    border-bottom-width: 1px;
+    border-bottom-color: var(--la-border);
+    flex-shrink: 0;
+}
+.la-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 58px;
+    padding: 2px 10px;
+    margin: 2px 4px;
+    border-left-width: 2px;
+    border-left-color: var(--la-border-strong);
+    border-radius: 2px;
+}
+.la-stat__value {
+    color: var(--la-text);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+.la-stat__label {
+    color: var(--la-text-subtle);
+    font-size: 9px;
+    letter-spacing: 1;
+}
+.la-stat--alert            { border-left-color: var(--la-tgt-encrypted); }
+.la-stat--alert .la-stat__value { color: var(--la-tgt-encrypted); }
+.la-stat--json        { border-left-color: var(--la-tgt-json); }
+.la-stat--binary      { border-left-color: var(--la-tgt-binary); }
+.la-stat--playerprefs { border-left-color: var(--la-tgt-playerprefs); }
+.la-stat--remote      { border-left-color: var(--la-tgt-remote); }
+
+/* ───────────────────────── Rich tree rows ───────────────────────── */
+
+.la-row--type .la-row__label {
+    color: var(--la-text);
+    -unity-font-style: bold;
+}
+.la-row--state {
+    margin-left: 18px;
+}
+.la-row--state .la-row__label {
+    color: var(--la-text-muted);
+}
+.la-row--error .la-row__label {
+    color: var(--la-tgt-encrypted);
+}
+
+/* Per-target dirty dots — one per target in the state's mask. Dim = clean,
+   saturated = has unsaved writes for that specific store. */
+.la-row__dots {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+}
+.la-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    margin-left: 3px;
+    opacity: 0.25;
+    transition: opacity 120ms;
+}
+.la-dot--dirty { opacity: 1; }
+.la-dot--json        { background-color: var(--la-tgt-json); }
+.la-dot--binary      { background-color: var(--la-tgt-binary); }
+.la-dot--playerprefs { background-color: var(--la-tgt-playerprefs); }
+.la-dot--remote      { background-color: var(--la-tgt-remote); }
+
+/* ───────────────────────── Field groups ───────────────────────── */
+
+.la-fieldgroup {
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 8px 4px 8px;
+    margin-top: 4px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--la-border);
+}
+.la-fieldgroup__count {
+    color: var(--la-text-subtle);
+    font-size: 10px;
+}
+
+/* A field whose value has moved off the type's constructed default. */
+.la-field--changed {
+    background-color: #26303c;
+    border-left-width: 2px;
+    border-left-color: var(--la-accent);
+    padding-left: 6px;
+}
+.la-field--changed .la-field__name {
+    color: var(--la-text);
+}
