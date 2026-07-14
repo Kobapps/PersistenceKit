@@ -63,6 +63,9 @@ namespace PersistenceKit.Targets
 #if UNITY_WEBGL && !UNITY_EDITOR
             PlayerPrefs.SetString(KeyPrefix + key, b64);
             PlayerPrefs.Save();
+            // PlayerPrefs.Save() writes into the same IDBFS mount as the disk targets, so it
+            // needs the same push to IndexedDB to outlive the tab.
+            WebGLStorage.RequestFlush();
             return default;
 #else
             return RunOnMain(() =>
@@ -101,6 +104,7 @@ namespace PersistenceKit.Targets
             {
                 PlayerPrefs.DeleteKey(ppKey);
                 PlayerPrefs.Save();
+                WebGLStorage.RequestFlush();
             }
             return default;
 #else

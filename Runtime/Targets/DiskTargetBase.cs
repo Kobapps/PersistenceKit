@@ -37,6 +37,14 @@ namespace PersistenceKit.Targets
 
         public string RootDirectory => _rootDir;
 
+        // WebGL is single-threaded with a synchronous emscripten filesystem: there is no
+        // overlapped I/O to overlap with, and asking for it only adds machinery.
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private const bool UseAsyncIO = false;
+#else
+        private const bool UseAsyncIO = true;
+#endif
+
         public async ValueTask SaveAsync(string key, ReadOnlyMemory<byte> payload, CancellationToken ct)
         {
             using var __pm = _markerWrite.Auto();
@@ -46,7 +54,7 @@ namespace PersistenceKit.Targets
             await sem.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
+                using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: UseAsyncIO))
                 {
                     var seg = payload.ToArray();
                     await fs.WriteAsync(seg, 0, seg.Length, ct).ConfigureAwait(false);
@@ -72,6 +80,10 @@ namespace PersistenceKit.Targets
 #if UNITY_WEBGL && !UNITY_EDITOR
                 if (File.Exists(path)) File.Delete(path);
                 File.Move(tmp, path);
+
+                // The file now exists in IDBFS's in-memory image only. Push it to IndexedDB or
+                // the save evaporates when the player closes the tab.
+                WebGLStorage.RequestFlush();
 #else
                 if (File.Exists(path))
                 {
@@ -130,6 +142,12 @@ namespace PersistenceKit.Targets
             {
                 try { if (File.Exists(path)) File.Delete(path); } catch (FileNotFoundException) { }
                 try { if (File.Exists(tmp))  File.Delete(tmp);  } catch (FileNotFoundException) { }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                // A delete is a write too — unflushed, the file is still in IndexedDB and
+                // reappears on the next load.
+                WebGLStorage.RequestFlush();
+#endif
             }
             finally
             {

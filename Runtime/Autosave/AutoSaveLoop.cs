@@ -159,6 +159,20 @@ namespace PersistenceKit.Autosave
             if (paused) FlushFireAndForget();
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        /// <summary>
+        /// WebGL never gets a dependable <c>OnApplicationQuit</c> — a closing tab simply stops
+        /// executing, and there is no way to run a save from <c>beforeunload</c>. Losing focus
+        /// is the last callback we can count on, so treat it as a save point: it fires when the
+        /// player switches tab or clicks away, which is what precedes almost every close.
+        /// The flush is cheap when nothing is dirty (SaveAllAsync only writes dirty targets).
+        /// </summary>
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused) FlushFireAndForget();
+        }
+#endif
+
         private void OnApplicationQuit() => FlushFireAndForget();
 
         private void OnDisable()
