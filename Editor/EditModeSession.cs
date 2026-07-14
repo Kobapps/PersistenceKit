@@ -39,12 +39,13 @@ namespace PersistenceKit.Editor
     /// <see cref="IPersistentState.TargetMask"/> requires defaults to be resolved, and
     /// <c>ResolveDefaults</c> is a process-wide latch: it throws if a later caller picks a
     /// different target, and the generated <c>__ResolveDefaults</c> only ever ORs bits into a
-    /// type's mask, never clears them. With the default Enter Play Mode settings the domain
-    /// reloads and all of this evaporates — but with the reload disabled our provisional
-    /// resolution would outlive us and either throw inside the game's <c>Build()</c> or leave
-    /// a stray target bit that makes the game write to a store it never wired. So the session
-    /// snapshots each type's mask before resolving and restores it (plus releases the latch)
-    /// on the way out.
+    /// type's mask (never clearing them) and overwrites the type's <c>__t_&lt;field&gt;</c>
+    /// routing statics. With the default Enter Play Mode settings the domain reloads and all of
+    /// this evaporates — but with the reload disabled our provisional resolution would outlive
+    /// us and either throw inside the game's <c>Build()</c> or leave a stray target bit that
+    /// makes the game write to a store it never wired. So the session snapshots every static
+    /// <c>__ResolveDefaults</c> touches before resolving, and restores them plus releases the
+    /// latch on the way out — see <see cref="ResolvedStatics"/>.
     /// </para>
     /// </remarks>
     [InitializeOnLoad]
@@ -53,9 +54,13 @@ namespace PersistenceKit.Editor
         /// <summary>Name of the private static mask field the generator emits per state type.</summary>
         private const string MaskFieldName = "__mask";
 
+        /// <summary>Prefix of the per-field target statics the generator emits (<c>__t_&lt;field&gt;</c>).</summary>
+        private const string TargetFieldPrefix = "__t_";
+
         private static PersistenceManager _manager;
 
-        // Per-type snapshot of __mask taken immediately before we resolved defaults.
+        // Snapshot of every static __ResolveDefaults writes (__mask + __t_*), per type, taken
+        // immediately before we resolved defaults.
         private static readonly Dictionary<FieldInfo, object> _maskBackup = new Dictionary<FieldInfo, object>();
 
         // True when *we* were the ones who latched the registry's resolved default, and are
@@ -102,6 +107,11 @@ namespace PersistenceKit.Editor
         /// <summary>Number of <c>[PersistentState]</c> types registered in this domain.</summary>
         public static int RegisteredTypeCount => PersistentStateRegistry.Snapshot().Count;
 
+        // The registered type set can only change on a domain reload, which resets these statics
+        // anyway — so both answers are cached. The window asks for them from its ~3 Hz tick, and
+        // AnyEncryptedFields in particular reflects over every field of every state type.
+        private static bool? _anyEncryptedCache;
+
         /// <summary>
         /// True when a key is configured and the session can read/write <c>[Encrypted]</c>
         /// fields. False means those states load and save as errors, not silently as plaintext.
@@ -115,13 +125,19 @@ namespace PersistenceKit.Editor
         /// </summary>
         public static bool AnyEncryptedFields()
         {
+            if (_anyEncryptedCache.HasValue) return _anyEncryptedCache.Value;
+
+            const BindingFlags bf = BindingFlags.Instance | BindingFlags.Public
+                                  | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            bool any = false;
             foreach (var rs in PersistentStateRegistry.Snapshot())
             {
-                var bf = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
                 foreach (var f in rs.Type.GetFields(bf))
-                    if (f.IsDefined(typeof(EncryptedAttribute), inherit: false)) return true;
+                    if (f.IsDefined(typeof(EncryptedAttribute), inherit: false)) { any = true; break; }
+                if (any) break;
             }
-            return false;
+            _anyEncryptedCache = any;
+            return any;
         }
 
         /// <summary>A fresh 32-byte key, Base64-encoded, for the settings field.</summary>
@@ -193,14 +209,21 @@ namespace PersistenceKit.Editor
                 if (encryptor != null) builder.UseEncryptor(encryptor);
                 else if (encError != null) Debug.LogWarning("[PersistenceKit] " + encError);
 
-                _manager = builder.Build();
+                // Claim ownership of the latch BEFORE Build(), not after. ResolveDefaults sets
+                // its own latch and then loops over every type's __ResolveDefaults; if one of
+                // those throws, the latch is already held while Build() unwinds. Assigning this
+                // afterwards would leave _weResolvedDefaults false, so the cleanup below would
+                // skip __UnresolveDefaults and strand a process-wide latch nobody can release —
+                // failing the game's own Build() for the rest of the domain's life.
                 _weResolvedDefaults = !alreadyResolved;
+                _manager = builder.Build();
                 return true;
             }
             catch (Exception ex)
             {
-                // Build() threw — we may have already perturbed the masks; put them back.
-                RestoreMasks();
+                // Build() threw — masks may already be perturbed and the latch already taken.
+                // Run the same cleanup Stop() would.
+                ReleaseProcessWideState();
                 _manager = null;
                 LastError = ex.Message;
                 Debug.LogException(ex);
@@ -215,24 +238,25 @@ namespace PersistenceKit.Editor
         /// </summary>
         public static void Stop()
         {
-            if (_manager == null)
+            if (_manager != null)
             {
-                // Masks may still be backed up if Start() failed between backup and Build().
-                RestoreMasks();
-                return;
+                try { _manager.Dispose(); }
+                catch (Exception ex) { Debug.LogException(ex); }
+                _manager = null;
+                _loadErrors.Clear();
             }
+            // Unconditional: Start() can fail between taking the latch and returning a manager,
+            // and that state still has to be handed back.
+            ReleaseProcessWideState();
+        }
 
-            try { _manager.Dispose(); }
-            catch (Exception ex) { Debug.LogException(ex); }
-            _manager = null;
-            _loadErrors.Clear();
-
+        /// <summary>Undo everything <see cref="Start"/> did to process-wide state. Idempotent.</summary>
+        private static void ReleaseProcessWideState()
+        {
             RestoreMasks();
-            if (_weResolvedDefaults)
-            {
-                PersistentStateRegistry.__UnresolveDefaults();
-                _weResolvedDefaults = false;
-            }
+            if (!_weResolvedDefaults) return;
+            PersistentStateRegistry.__UnresolveDefaults();
+            _weResolvedDefaults = false;
         }
 
         /// <summary>Stop, restart, and reload every saved state from storage.</summary>
@@ -287,6 +311,10 @@ namespace PersistenceKit.Editor
         public static async Task<bool> LoadSlotAsync(Type stateType, string slot)
         {
             if (_manager == null && !Start()) return false;
+            // Clear first: the banner short-circuits on LastError, so a stale one from an earlier
+            // bad slot name would keep hiding the real status (including the missing-key warning)
+            // for the rest of the session.
+            LastError = null;
             try
             {
                 await LoadOneAsync(_manager, stateType, slot ?? string.Empty);
@@ -439,12 +467,13 @@ namespace PersistenceKit.Editor
             _maskBackup.Clear();
             foreach (var rs in PersistentStateRegistry.Snapshot())
             {
-                var f = MaskField(rs.Type);
-                if (f == null) continue;
-                try { _maskBackup[f] = f.GetValue(null); }
-                catch (Exception ex)
+                foreach (var f in ResolvedStatics(rs.Type))
                 {
-                    Debug.LogWarning($"[PersistenceKit] Couldn't snapshot {rs.Type.Name}.{MaskFieldName}: {ex.Message}");
+                    try { _maskBackup[f] = f.GetValue(null); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[PersistenceKit] Couldn't snapshot {rs.Type.Name}.{f.Name}: {ex.Message}");
+                    }
                 }
             }
         }
@@ -456,21 +485,34 @@ namespace PersistenceKit.Editor
                 try { kv.Key.SetValue(null, kv.Value); }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[PersistenceKit] Couldn't restore {kv.Key.DeclaringType?.Name}.{MaskFieldName}: {ex.Message}");
+                    Debug.LogWarning($"[PersistenceKit] Couldn't restore {kv.Key.DeclaringType?.Name}.{kv.Key.Name}: {ex.Message}");
                 }
             }
             _maskBackup.Clear();
         }
 
         /// <summary>
-        /// The generated <c>private static PersistTargetMask __mask</c> on a state's partial.
-        /// Absent on hand-written test fixtures; a rename in a future generator makes this
-        /// null, which costs us the restore but nothing else.
+        /// Every static the generated <c>__ResolveDefaults</c> writes: the type's
+        /// <c>__mask</c>, plus one <c>__t_&lt;field&gt;</c> per default-routed field.
         /// </summary>
-        private static FieldInfo MaskField(Type stateType)
+        /// <remarks>
+        /// The <c>__t_</c> fields matter as much as the mask: the generated property setter
+        /// marks dirty against <c>__t_&lt;field&gt;</c>, so a stale one routes a write to the
+        /// wrong target's bit. Explicit-target fields emit theirs as a <c>const</c>, which
+        /// <c>__ResolveDefaults</c> never touches and reflection cannot set — hence the
+        /// <see cref="FieldInfo.IsLiteral"/> filter. Absent on hand-written test fixtures, and a
+        /// rename in a future generator yields an empty set: that costs the restore, nothing else.
+        /// </remarks>
+        private static IEnumerable<FieldInfo> ResolvedStatics(Type stateType)
         {
-            var f = stateType.GetField(MaskFieldName, BindingFlags.Static | BindingFlags.NonPublic);
-            return f != null && f.FieldType == typeof(PersistTargetMask) ? f : null;
+            foreach (var f in stateType.GetFields(BindingFlags.Static | BindingFlags.NonPublic))
+            {
+                if (f.IsLiteral) continue;
+                if (f.Name == MaskFieldName && f.FieldType == typeof(PersistTargetMask))
+                    yield return f;
+                else if (f.FieldType == typeof(PersistTarget) && f.Name.StartsWith(TargetFieldPrefix, StringComparison.Ordinal))
+                    yield return f;
+            }
         }
     }
 }

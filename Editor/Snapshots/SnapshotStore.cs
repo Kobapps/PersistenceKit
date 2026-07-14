@@ -138,36 +138,46 @@ namespace PersistenceKit.Editor.Snapshots
             catch (Exception ex) { Debug.LogException(ex); }
 
             int restored = 0, skipped = 0;
-            if (snap.States != null)
+            // OnRestored MUST fire even if a save throws. Subscribers pair it with OnRestoring to
+            // latch state — the window suppresses per-state activity rows between the two — so an
+            // escaping exception here used to leave that latch stuck on, silently dropping every
+            // save event from the Activity tab for the rest of the editor session.
+            try
             {
-                foreach (var prop in snap.States.Properties())
+                if (snap.States != null)
                 {
-                    var key = prop.Name;
-                    if (!(prop.Value is JObject fieldsObj))
+                    foreach (var prop in snap.States.Properties())
                     {
-                        skipped++;
-                        continue;
-                    }
+                        var key = prop.Name;
+                        if (!(prop.Value is JObject fieldsObj))
+                        {
+                            skipped++;
+                            continue;
+                        }
 
-                    var (manager, target) = FindStateByKey(key);
-                    if (target == null)
-                    {
-                        Debug.LogWarning($"[PersistenceKit] Snapshot restore: state '{key}' is not currently loaded — skipped.");
-                        skipped++;
-                        continue;
-                    }
+                        var (manager, target) = FindStateByKey(key);
+                        if (target == null)
+                        {
+                            Debug.LogWarning($"[PersistenceKit] Snapshot restore: state '{key}' is not currently loaded — skipped.");
+                            skipped++;
+                            continue;
+                        }
 
-                    ApplyFields(target, fieldsObj);
-                    // Only targets with a store behind them — MarkDirty() would set the state's
-                    // whole mask, and SaveAsync throws on an unwired target, which would sink
-                    // the restore for the wired ones too.
-                    PersistenceKitWindow.MarkWiredTargetsDirty(manager, target);
-                    await manager.SaveAsync(target);
-                    restored++;
+                        ApplyFields(target, fieldsObj);
+                        // Only targets with a store behind them — MarkDirty() would set the state's
+                        // whole mask, and SaveAsync throws on an unwired target, which would sink
+                        // the restore for the wired ones too.
+                        PersistenceKitWindow.MarkWiredTargetsDirty(manager, target);
+                        await manager.SaveAsync(target);
+                        restored++;
+                    }
                 }
             }
-            try { OnRestored?.Invoke(snap, restored, skipped); }
-            catch (Exception ex) { Debug.LogException(ex); }
+            finally
+            {
+                try { OnRestored?.Invoke(snap, restored, skipped); }
+                catch (Exception ex) { Debug.LogException(ex); }
+            }
             return (restored, skipped);
         }
 

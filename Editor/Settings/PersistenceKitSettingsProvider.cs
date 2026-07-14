@@ -271,6 +271,10 @@ namespace PersistenceKit.Editor.Settings
             row.style.alignItems = Align.Center;
 
             var field = new TextField("Encryption key (Base64)") { value = prop.stringValue ?? string.Empty };
+            // Commit on Enter / focus-loss, not per keystroke: each commit writes ProjectSettings
+            // to disk and tears the edit-mode session down, so typing a key character-by-character
+            // would dispose the window's manager dozens of times and empty its tree mid-type.
+            field.isDelayed = true;
             field.tooltip = "Base64 of the 32-byte AES key. Must be the same key your game passes to " +
                             "ConstantKeyProvider, or the window reads and writes gibberish. " +
                             "Leave empty if you don't use [Encrypted].";
@@ -358,6 +362,7 @@ namespace PersistenceKit.Editor.Settings
             row.style.marginBottom = 4;
 
             var field = new TextField(label) { value = prop.stringValue ?? string.Empty };
+            field.isDelayed = true;   // see MakeEncryptionKeyField — per-keystroke commits kill the session
             field.tooltip = $"Empty = <persistentDataPath>/PersistenceKit/{defaultLeaf}, which is what the target's " +
                             "default constructor uses. Relative paths resolve to the project root.";
             field.style.flexGrow = 1;
@@ -415,6 +420,7 @@ namespace PersistenceKit.Editor.Settings
             row.style.alignItems = Align.Center;
 
             var field = new TextField("Folder") { value = prop.stringValue ?? string.Empty };
+            field.isDelayed = true;   // one commit per keystroke would rewrite ProjectSettings on every character
             field.tooltip = "Where snapshot .json files are written (one per snapshot). Relative paths resolve to " +
                             "the project root; absolute paths are used as-is. Default lives next to ProjectSettings/ " +
                             "rather than under Library/ so snapshots survive cache wipes.";

@@ -975,10 +975,12 @@ namespace PersistenceKit.Editor.Tabs
                 var tree = holder.Tree;
                 if (tree == null) return;
 
-                InspectorUtilities.BeginDrawPropertyTree(tree, false);
+                // Begin/Draw/ApplyChanges/EndDraw rather than the one-shot Draw(): we need the
+                // ApplyChanges return value to know whether to push the edit back into the state.
+                tree.BeginDraw(false);
                 tree.Draw(false);
                 bool changed = tree.ApplyChanges();
-                InspectorUtilities.EndDrawPropertyTree(tree);
+                tree.EndDraw();
 
                 if (changed)
                 {
@@ -1158,10 +1160,13 @@ namespace PersistenceKit.Editor.Tabs
         /// </summary>
         private void RebuildActions()
         {
-            if (ReferenceEquals(_actionsBuiltForState, _selState) && _selState != null)
+            // The childCount check covers the idle case: with nothing selected, _selState and
+            // _actionsBuiltForState are both null, and a `_selState != null` guard would fail
+            // every tick and re-create the hint label 3x/second forever.
+            if (ReferenceEquals(_actionsBuiltForState, _selState) && _actionsHost.childCount > 0)
             {
                 // Same selection — just push the live dirty value.
-                if (_infoDirtyValue != null && _selManager != null)
+                if (_infoDirtyValue != null && _selManager != null && _selState != null)
                     _infoDirtyValue.text = _selManager.Dirty.Peek(_selState.Key).ToString();
                 return;
             }
@@ -1381,6 +1386,9 @@ namespace PersistenceKit.Editor.Tabs
             if (!PersistenceKitSettings.Instance.ShowOverview)
             {
                 if (_overview.childCount > 0) _overview.Clear();
+                // Drop the signature too, or turning the setting back on leaves the strip blank:
+                // the stats we just cleared would still match the cached sig and never rebuild.
+                _overviewSig = null;
                 _overview.style.display = DisplayStyle.None;
                 return;
             }
