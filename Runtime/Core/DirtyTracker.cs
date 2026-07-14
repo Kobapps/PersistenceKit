@@ -15,7 +15,14 @@ namespace PersistenceKit
         private readonly object _lock = new object();
         private int _dirtyCount;
 
-        /// <summary>Raised when a key transitions from clean to dirty. Fires on the calling thread.</summary>
+        /// <summary>
+        /// Raised when a <see cref="Mark"/> actually adds a target bit — i.e. on a clean→dirty
+        /// transition, or when an already-dirty key gains a bit for a further target. Marking a
+        /// bit that is already set is a no-op and raises nothing, so this is an edge signal, not
+        /// a per-write one: a subscriber that latches it must re-check <see cref="HasDirty"/>
+        /// after any period where it ignored the event, or writes made during that window are
+        /// stranded until some other key goes dirty. Fires on the calling thread.
+        /// </summary>
         public event Action<string, PersistTarget> OnDirty;
 
         /// <summary>Mark <paramref name="key"/> dirty for <paramref name="target"/>.</summary>
