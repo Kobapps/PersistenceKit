@@ -18,7 +18,7 @@ PersistenceKit ships as a UPM package. Three ways to install:
 **1. Git URL** (`Packages/manifest.json` → add to `dependencies`):
 
 ```json
-"com.kobapps.persistencekit": "https://github.com/kobapps/persistencekit.git?path=Assets/PersistenceKit"
+"com.kobapps.persistencekit": "https://github.com/Kobapps/PersistenceKit.git"
 ```
 
 **2. Package Manager → Add → Add package from git URL** → paste the URL above.
@@ -39,13 +39,22 @@ The kit runs on WebGL with two platform-aware behaviours baked in:
   filesystem doesn't implement `File.Replace` reliably; the swap is therefore
   non-atomic on WebGL (everywhere else it is atomic via `File.Replace`).
 
-A few WebGL caveats users still need to handle themselves:
+WebGL durability is handled for you. `Application.persistentDataPath` on WebGL is an IDBFS
+mount that lives in memory, so a write only reaches IndexedDB — the thing that survives a
+reload — once emscripten's `FS.syncfs` runs. The kit ships
+`Runtime/Plugins/WebGL/PersistenceKitWebGL.jslib` and calls it after every disk save, disk
+delete, and PlayerPrefs write, coalescing concurrent syncs. Without that, a save reads back
+fine for the rest of the session and is silently gone the next time the player opens the page.
 
-- `Application.persistentDataPath` writes go to an in-memory mirror of IDBFS. Unity
-  syncs them to the browser's IndexedDB on its own schedule (typically frame end
-  and tab unload). Save data won't survive a force-close if you didn't give Unity
-  the chance to sync — call `Application.ExternalEval("FS.syncfs(false, e => {});")`
-  for hard guarantees around critical writes.
+You can force a flush yourself with `PersistenceKit.Targets.WebGLStorage.RequestFlush()`
+(a no-op off WebGL). If the `.jslib` is ever excluded from your build, the kit logs a warning
+once and saves stop surviving reloads — so keep it in.
+
+Remaining WebGL notes:
+
+- `AutoSaveLoop` also flushes on focus loss on WebGL: a closing tab never fires
+  `OnApplicationQuit` and nothing can save from `beforeunload`, so losing focus is the last
+  callback available.
 - The `RemoteTarget` works fine on WebGL but any `IRemotePersistenceProvider` you
   supply must use `UnityWebRequest` (not `HttpClient`, which doesn't work on WebGL).
 
@@ -247,9 +256,18 @@ restore a state that hasn't been loaded yet, call `LoadOrCreateAsync<T>(slot)` f
 
 ## Notes on encryption
 
-The shipped `AesGcmEncryptor` uses AES-256-GCM with a 12-byte nonce per write and a
-16-byte tag. Tokens look like `enc:v1:<base64-nonce>:<base64-ct+tag>` — the `v1` prefix
-is reserved so a future cipher version can coexist.
+The shipped `AesGcmEncryptor` uses **AES-256-CBC + HMAC-SHA256 (Encrypt-then-MAC)**, with a
+fresh 16-byte IV per write and a 32-byte tag. Tokens look like
+`enc:v1:<base64-iv>:<base64-ciphertext>:<base64-tag>` — the `v1` prefix is reserved so a
+future cipher version can coexist.
+
+Despite the class name, this is **not** AES-GCM: Unity's Mono runtime does not ship
+`System.Security.Cryptography.AesGcm` on every platform (its constructor throws
+`PlatformNotSupportedException`), so the kit pairs primitives the BCL supports everywhere.
+CBC+HMAC in Encrypt-then-MAC form matches AES-GCM's guarantees against the offline attacker
+this kit is designed for: the tag covers `IV ‖ ciphertext` and is verified in constant time
+*before* any decryption, so there is no padding oracle. The class name is retained for ABI
+stability.
 
 `ConstantKeyProvider` is a development convenience. For production, derive keys from a
 device keystore / user secret rather than embedding them in the build.

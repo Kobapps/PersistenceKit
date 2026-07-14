@@ -36,7 +36,14 @@ namespace PersistenceKit
     public sealed class PersistentStateAttribute : Attribute
     {
         /// <summary>Optional override for the type id used as the storage key. Defaults to the class name.</summary>
-        public string TypeId { get; set; }
+        /// <remarks>
+        /// Deliberately hides <see cref="Attribute.TypeId"/> (declared <c>new</c> to say so, and
+        /// to keep the warning out of consumers' consoles). Nothing reads the base member here:
+        /// the generator lifts this value from the attribute's named argument at compile time,
+        /// never by reflecting the attribute instance. Renaming it would break every existing
+        /// <c>[PersistentState(TypeId = "…")]</c>, so the hide stays.
+        /// </remarks>
+        public new string TypeId { get; set; }
     }
 
     /// <summary>

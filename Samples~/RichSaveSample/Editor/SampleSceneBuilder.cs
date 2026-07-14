@@ -106,7 +106,7 @@ namespace PersistenceKit.Editor
 
         private static void EnsureEventSystem()
         {
-            if (Object.FindObjectOfType<EventSystem>() != null) return;
+            if (Object.FindAnyObjectByType<EventSystem>() != null) return;
             var go = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             Undo.RegisterCreatedObjectUndo(go, "Create EventSystem");
         }

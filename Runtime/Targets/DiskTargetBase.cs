@@ -111,7 +111,7 @@ namespace PersistenceKit.Targets
             try
             {
                 if (!File.Exists(path)) return null;
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: UseAsyncIO);
                 var len = (int)fs.Length;
                 var buf = new byte[len];
                 int read = 0;
